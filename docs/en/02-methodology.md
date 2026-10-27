@@ -12,6 +12,7 @@ How robust are Jacobian-lens readouts to weight quantization?
 | H1 | The lens fitted on BF16 reads the same intermediate concepts on Q8_0/Q4_0. | pass@k of the fixed lens vs. reference |
 | H2 | The deviation grows monotonically with stronger quantization. | agreement metrics across levels |
 | H3 | A lens refitted on the quant restores the signal (space shifted, not destroyed). | refitted vs. fixed lens |
+| H4 | The lens directions fitted on BF16 still act causally on the quant: intervening along them changes the answer as on BF16. | steering success and ablation effect vs. reference (§6 E) |
 | H0 | Quantization changes nothing measurable. | all differences within the noise floor |
 
 Expectation from the literature ([`01-background.md`](01-background.md)): no effect for Q8_0, a clear
@@ -110,7 +111,7 @@ on the held-out text.
 
 ## 6. Extension
 
-Added after the main run, evaluated with the fixed BF16 lens only:
+Added after the main run; A–D evaluated with the fixed BF16 lens only:
 
 - **A — representations without a lens:** per layer, relative error `‖h_q − h_BF16‖/‖h_BF16‖`, cosine
   and linear CKA against BF16.
@@ -118,6 +119,19 @@ Added after the main run, evaluated with the fixed BF16 lens only:
   frequency in corpus A.
 - **C — component ablation:** only attention, only MLP or only embedding in Q4_0, rest BF16.
 - **D — bit-width ladder:** legacy family (Q8_0, Q5_0, Q4_0) and K family (Q6_K to Q2_K), all flat.
+- **E — causal test (interventions):** the paper's `probe-swap` set (90 two-hop questions with bridge
+  concept, answer, swap concept and swap answer, e.g. Brazil → Portuguese, Mexico → Spanish). At every
+  prompt position the residual stream is changed along lens directions and the next token is measured:
+  - **steering** at L18–L25: `h += α·h_rms·(v̂_swap − v̂_bridge)`, α = 0.05 — success if the next
+    token is the swap answer. Control: steering towards an unrelated concept.
+  - the paper's **coordinate swap** in the workspace band (`h' = h + V(σ(c) − c)`, `c = V⁺h`).
+  - **ablation** of the bridge direction at L18–L25 — effect = correct answers lost. Control: ablating
+    an unrelated concept.
+
+  `v̂_t` is the lens direction of token `t` at the given layer (`Jᵀu_t`, normalized), computed with the
+  unembedding of the model being intervened on. Arms: BF16 (lens A and noise lens B), Q8_0 and Q4_0
+  each with the fixed and the refitted lens, all other models with the fixed lens. Layers and strength
+  come from a BF16 pilot ([`04-decisions.md`](04-decisions.md) §7).
 
 ## 7. Limitations
 

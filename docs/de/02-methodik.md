@@ -12,6 +12,7 @@ Wie robust sind die Readouts der Jacobian Lens gegenüber Gewichtsquantisierung?
 | H1 | Die auf BF16 gefittete Lens liest auf Q8_0/Q4_0 dieselben Zwischenkonzepte. | pass@k der festen Lens vs. Referenz |
 | H2 | Die Abweichung wächst monoton mit stärkerer Quantisierung. | Agreement-Metriken über die Stufen |
 | H3 | Eine neu auf dem Quant gefittete Lens stellt das Signal wieder her (Raum verschoben, nicht zerstört). | neu gefittete vs. feste Lens |
+| H4 | Die auf BF16 gefitteten Lens-Richtungen wirken auch auf dem Quant kausal: Ein Eingriff entlang dieser Richtungen verändert die Antwort wie auf BF16. | Steering-Erfolg und Ablations-Effekt vs. Referenz (§6 E) |
 | H0 | Quantisierung ändert nichts Messbares. | alle Differenzen innerhalb der Rauschgrenze |
 
 Erwartung aus der Literatur ([`01-hintergrund.md`](01-hintergrund.md)): Q8_0 ohne Effekt, Q4_0 mit
@@ -110,7 +111,7 @@ Perplexity auf dem Held-out-Text.
 
 ## 6. Erweiterung
 
-Nach dem Hauptlauf ergänzt, nur mit der festen BF16-Lens ausgewertet:
+Nach dem Hauptlauf ergänzt; A–D nur mit der festen BF16-Lens ausgewertet:
 
 - **A — Repräsentationen ohne Lens:** pro Schicht relativer Fehler `‖h_q − h_BF16‖/‖h_BF16‖`,
   Kosinus und lineares CKA gegenüber BF16.
@@ -118,6 +119,20 @@ Nach dem Hauptlauf ergänzt, nur mit der festen BF16-Lens ausgewertet:
   Token-Häufigkeit in Korpus A.
 - **C — Komponenten-Ablation:** nur Attention, nur MLP oder nur Embedding in Q4_0, Rest BF16.
 - **D — Bitbreiten-Leiter:** Legacy-Familie (Q8_0, Q5_0, Q4_0) und K-Familie (Q6_K bis Q2_K), alle flach.
+- **E — Kausaler Test (Interventionen):** Paper-Set `probe-swap` (90 Zwei-Schritt-Fragen mit
+  Brückenkonzept, Antwort, Tauschkonzept und Tausch-Antwort, z. B. Brazil → Portuguese, Mexico →
+  Spanish). An jeder Prompt-Position wird der Residual Stream entlang von Lens-Richtungen verändert und
+  das nächste Token gemessen:
+  - **Steering** in L18–L25: `h += α·h_rms·(v̂_Tausch − v̂_Brücke)`, α = 0,05 — Erfolg, wenn das
+    nächste Token die Tausch-Antwort ist. Kontrolle: Steering zu einem unbeteiligten Konzept.
+  - **Koordinaten-Tausch** des Papers im Workspace-Band (`h' = h + V(σ(c) − c)`, `c = V⁺h`).
+  - **Ablation** der Brückenrichtung in L18–L25 — Effekt = verlorene richtige Antworten. Kontrolle:
+    Ablation eines unbeteiligten Konzepts.
+
+  `v̂_t` ist die Lens-Richtung von Token `t` in der jeweiligen Schicht (`Jᵀu_t`, normiert), berechnet
+  mit dem Unembedding des Modells, in das eingegriffen wird. Arme: BF16 (Lens A und Rausch-Lens B),
+  Q8_0 und Q4_0 je mit fester und neu gefitteter Lens, alle übrigen Modelle mit fester Lens. Schichten
+  und Stärke stammen aus einem BF16-Pilot ([`04-entscheidungen.md`](04-entscheidungen.md) §7).
 
 ## 7. Grenzen
 

@@ -47,6 +47,8 @@ scripts/make_quant_variants.sh       # extension: ladder + ablation
 scripts/fit_lenses.sh
 .venv/bin/python -m jspace_quant capture --gpus 0,1   # only models not captured yet
 .venv/bin/python -m jspace_quant analyze              # only arms not computed yet
+.venv/bin/python -m jspace_quant intervene --gpus 0,1 # causal test (after analyze: needs the band)
+.venv/bin/python -m jspace_quant analyze              # again, summarizes the causal test
 .venv/bin/python -m jspace_quant plot                 # figures in English and German
 
 # notebooks
@@ -66,6 +68,7 @@ a few items into `results/smoke/`. `JSPACE_GPU`/`JSPACE_GPUS` select the GPUs, w
 | Lens fit | ~40 min per lens (CPU-bound: Gram matrices in float64) |
 | Capture | ~1 min per model |
 | Analysis | ~35 min for the 11 arms of the main study, ~50 min for the 18 arms of the extension (CPU) |
+| Causal test | ~1 min per model (GPU), ~1.5 GB RAM per lens |
 
 ## Directories
 

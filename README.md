@@ -17,6 +17,9 @@ We study **Spark-X2.6-4B** in BF16 (reference), Q8_0 and Q4_0, extended by a bit
   losses: the space is shifted, not destroyed.
 - **3 bit** measurably costs concepts, **2 bit** destroys them.
 - The drift arises in the residual stream; attention, MLP and embedding each contribute.
+- **Causally**, too: steering along the lens directions fitted on BF16 redirects the model's answer
+  (27 % vs. 5 % in a control) and works on quantized models just as well down to 4 bit; at 3 bit it
+  weakens, at 2 bit it is gone.
 
 ![Hidden concepts across layers](results/figures/en/concept_trajectories.png)
 
@@ -33,6 +36,8 @@ code and figures: [`notebooks/walkthrough.en.ipynb`](notebooks/walkthrough.en.ip
    second BF16 lens on a different corpus serves as the noise floor.
 3. **Measure:** whether the hidden intermediate concepts of the paper's six eval sets are still readable
    (pass@k), how much the readouts change per layer, and how the model's behavior changes.
+4. **Intervene:** steer the residual stream along lens directions on the paper's `probe-swap` set and
+   check whether the answer follows — on every quantization level.
 
 ## Documentation
 
@@ -47,7 +52,7 @@ code and figures: [`notebooks/walkthrough.en.ipynb`](notebooks/walkthrough.en.ip
 ## Code
 
 ```
-src/jspace_quant/   pipeline: capture (GPU) → analyze (CPU) → plot
+src/jspace_quant/   pipeline: capture (GPU) → analyze (CPU) → intervene (GPU) → plot
 tests/              unit tests
 scripts/            corpus, quantization, layout check, lens fits, notebooks
 data/corpus/        frozen WikiText corpora

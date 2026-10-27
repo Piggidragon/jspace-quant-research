@@ -215,28 +215,46 @@ display(Image(F / "ablation.png", width=1100))
     ("code", """
 display(Image(F / "concept_loss.png", width=1100))
 """),
-    ("""## 11. Behavior check""",
-     """## 11. Verhaltenskontrolle"""),
+    ("""## 11. Causal test: do lens directions still steer the model?
+
+On the paper's `probe-swap` set (e.g. "the language spoken in the country where the Amazon River ends
+is" → Brazil → Portuguese) we steer the residual stream at L18–L25 away from the bridge concept and
+towards a swap concept (Mexico) and check whether the answer follows (Spanish).""",
+     """## 11. Kausaler Test: Steuern die Lens-Richtungen das Modell noch?
+
+Auf dem Paper-Set `probe-swap` (z. B. „the language spoken in the country where the Amazon River ends
+is“ → Brazil → Portuguese) lenken wir den Residual Stream in L18–L25 vom Brückenkonzept weg und zu einem
+Tauschkonzept (Mexico) hin und prüfen, ob die Antwort folgt (Spanish)."""),
+    ("code", """
+iv = pd.read_csv(T / "interventions_summary.csv")
+display(iv[["model", "lens", "baseline_accuracy", "steer_success", "steer_success_vs_ref",
+            "steer_success_vs_ref_ci_lo", "steer_success_vs_ref_ci_hi", "steer_control", "ablate_drop"]])
+display(Image(F / "interventions.png", width=1100))
+"""),
+    ("""## 12. Behavior check""",
+     """## 12. Verhaltenskontrolle"""),
     ("code", """
 beh = pd.read_csv(T / "behavior.csv")
 beh[beh.metric == "heldout_ppl"][["model", "value", "vs_ref", "vs_ref_ci_lo", "vs_ref_ci_hi"]].reset_index(drop=True)
 """),
-    ("""## 12. Conclusion
+    ("""## 13. Conclusion
 
 - **8 bit** changes nothing measurable.
 - **Down to 4 bit** the hidden concepts stay readable, although the readout distribution drifts
   noticeably from ~6 bit on, growing with depth. A refitted lens recovers losses: the space is
   shifted, not destroyed.
 - **3 bit** costs concepts, **2 bit** destroys them.
+- Steering along the lens directions works causally on the quantized models down to 4 bit as well.
 
 Limitations and reflection: `docs/en/05-results.md`.""",
-     """## 12. Fazit
+     """## 13. Fazit
 
 - **8 bit** ändert nichts Messbares.
 - **Bis 4 bit** bleiben die verborgenen Konzepte lesbar, obwohl die Readout-Verteilung schon ab ~6 bit
   deutlich und mit der Tiefe wachsend driftet. Eine neu gefittete Lens holt Verluste zurück: Der Raum ist
   verschoben, nicht zerstört.
 - **3 bit** kostet Konzepte, **2 bit** zerstört sie.
+- Steering entlang der Lens-Richtungen wirkt bis 4 bit auch auf den quantisierten Modellen kausal.
 
 Grenzen und Reflexion: `docs/de/05-ergebnisse.md`."""),
 ]

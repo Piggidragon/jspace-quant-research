@@ -15,6 +15,9 @@ against the reference. "Core" = the four eval sets that are not already at floor
    component explains it — attention, MLP and embedding each contribute.
 5. **At 4 bit the space is shifted, not destroyed:** a refitted lens recovers lost concepts and
    predicts the quantized model's behavior as well as for the original.
+6. **The lens directions also act causally — down to 4 bit:** steering along the directions fitted on
+   BF16 redirects the answer to the swap concept in 27 % of cases (control 5 %); down to 4 bit this
+   stays within the noise, at 3 bit it drops clearly, at 2 bit it is gone.
 
 ## 1. Workspace band and positive control
 
@@ -110,13 +113,43 @@ Among the concepts the reference reads in the band (rank ≤ 10, n = 249), the s
 Rare concepts are lost more often — but they already vary most between two BF16 lenses. A clear
 frequency effect beyond the noise only shows at 3 bit.
 
-## 6. Hypotheses
+## 6. Causal test: do the lens directions still steer?
+
+The paper's `probe-swap` set, 86 of 90 items (4 lack a single-token concept). Share of items; in
+parentheses the paired difference to the reference with 95 % CI (`interventions.png`):
+
+| Arm | Answer without intervention | Steering → swap answer | Control steering | Ablation: answers lost | Coordinate swap |
+|---|---|---|---|---|---|
+| BF16, lens A | 0.40 | **0.27** | 0.05 | 0.05 | 0.07 |
+| BF16, noise lens B | 0.40 | 0.26 (−0.01) | 0.06 | 0.06 | 0.06 |
+| Q8_0, fixed lens | 0.41 | 0.27 (±0.00) | 0.05 | 0.05 | 0.07 |
+| Q6_K | 0.38 | 0.24 (−0.02) | 0.05 | 0.03 | 0.08 |
+| Q5_K / Q5_0 | 0.38 / 0.44 | 0.23 / 0.23 (−0.03) | ≈ 0.05 | 0.07 / 0.09 | ≈ 0.07 |
+| Q4_K | 0.38 | 0.24 (−0.02) | 0.03 | 0.05 | 0.06 |
+| Q4_0, fixed lens | 0.38 | 0.23 (−0.03 [−0.12; +0.03]) | 0.06 | 0.05 | 0.06 |
+| Q4_0, refitted | 0.38 | 0.21 (−0.06 [−0.14; +0.01]) | 0.07 | 0.06 | 0.06 |
+| Q3_K | 0.22 | **0.15 (−0.12 [−0.20; −0.05])** | 0.03 | 0.06 | 0.05 |
+| Q2_K | 0.01 | **0.01 (−0.26)** | 0.00 | 0.00 | 0.01 |
+| embedding / attention / MLP only Q4_0 | 0.40–0.41 | 0.26 / 0.26 / 0.22 | ≈ 0.05 | 0.03–0.07 | ≈ 0.07 |
+
+- **Steering is specific:** 27 % vs. 5 % when steering towards an unrelated concept.
+- **Down to 4 bit** the effect holds (differences −0.02 to −0.06, all CIs include 0): the directions
+  fitted on BF16 steer the quantized model practically as well.
+- **From 3 bit** it drops significantly, at 2 bit it is gone — although there the model itself barely
+  solves the tasks (answer without intervention 0.22 and 0.01).
+- **With stronger quantization steering more often turns into mere output:** the share where the model
+  simply outputs the swap word rises from 0.19 (BF16) to 0.29 (Q3_K) and 0.33 (Q2_K).
+- **A refitted lens does not help here** (Q4_0: 0.21 vs. 0.23).
+- **Ablation and coordinate swap barely act** — at no level, not even on BF16.
+
+## 7. Hypotheses
 
 | | Result |
 |---|---|
 | H1 | Q8_0: yes. 4 bit: concepts yes, distribution no. ≤ 3 bit: no. |
 | H2 | Yes: distribution monotonic across the whole ladder; concepts measurably affected only from 3 bit. |
 | H3 | Partly: refitting recovers concepts and keeps fidelity; the deviation from the BF16 readout remains, because the model itself computes differently. |
+| H4 | Yes down to 4 bit (steering success within the noise), no from 3 bit. Holds for steering only; ablation and coordinate swap barely act even on BF16. |
 | H0 | Kept for Q8_0 (and Q6_K), rejected from 5 bit on. |
 
 ## Reflection
@@ -156,6 +189,17 @@ conclusions on the relative error and the readouts.
 **Prompt format.** The eval sets were written for text completion; Spark is a chat model. We chose the
 chat format on BF16 alone, before any quant results existed. Still, the numbers hold for this format;
 `association` and `poetry` are not measurable with it on this model.
+
+**Causal test: a lever rather than a mechanism.** Our lens directions are pull-backs of output
+directions (`Jᵀu`). Applied late, they tell the model *what to output* rather than *what to think
+about* — in the band it outputs the swap word itself. We therefore had to move to earlier layers
+(L18–L25), and even there the answer follows in only about a quarter of cases. That **ablation** has
+almost no effect means that the bridge concept's lens direction is not *necessary* for the answer —
+either the information is stored redundantly or our direction only partly matches the model's
+representation. The paper's coordinate swap does not work with the regression lens at all. We chose
+layers and strength on 30 of the 90 items on BF16; that flatters the absolute value, not the comparison
+between quants. At 3 and 2 bit the loss of steerability cannot be separated from the model's general
+degradation.
 
 **One model.** All statements concern Spark-X2.6-4B. According to the literature small models are more
 sensitive; larger ones might be more robust.

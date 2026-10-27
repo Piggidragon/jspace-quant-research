@@ -16,6 +16,9 @@ gegen die Referenz. „Kern“ = die vier Eval-Sets, die nicht schon auf BF16 am
 5. **Bei 4 bit ist der Raum verschoben, nicht zerstört:** Eine neu gefittete Lens holt verlorene
    Konzepte zurück und sagt das Verhalten des quantisierten Modells genauso gut vorher wie beim
    Original.
+6. **Die Lens-Richtungen wirken auch kausal — bis 4 bit:** Steering entlang der auf BF16 gefitteten
+   Richtungen lenkt die Antwort in 27 % der Fälle auf das Tauschkonzept um (Kontrolle 5 %); bis 4 bit
+   bleibt das im Rahmen des Rauschens, bei 3 bit sinkt es deutlich, bei 2 bit ist es weg.
 
 ## 1. Workspace-Band und Positivkontrolle
 
@@ -112,13 +115,43 @@ Unter den Konzepten, die die Referenz im Band liest (Rang ≤ 10, n = 249), Ante
 Seltene Konzepte gehen eher verloren — aber sie schwanken schon zwischen zwei BF16-Lenses am
 stärksten. Ein klarer Häufigkeitseffekt über das Rauschen hinaus zeigt sich erst bei 3 bit.
 
-## 6. Hypothesen
+## 6. Kausaler Test: Steuern die Lens-Richtungen noch?
+
+Paper-Set `probe-swap`, 86 der 90 Items (bei 4 fehlt ein Ein-Token-Konzept). Anteil der Items; in
+Klammern die gepaarte Differenz zur Referenz mit 95-%-KI (`interventions.png`):
+
+| Arm | Antwort ohne Eingriff | Steering → Tausch-Antwort | Kontroll-Steering | Ablation: verlorene Antworten | Koordinaten-Tausch |
+|---|---|---|---|---|---|
+| BF16, Lens A | 0,40 | **0,27** | 0,05 | 0,05 | 0,07 |
+| BF16, Rausch-Lens B | 0,40 | 0,26 (−0,01) | 0,06 | 0,06 | 0,06 |
+| Q8_0, feste Lens | 0,41 | 0,27 (±0,00) | 0,05 | 0,05 | 0,07 |
+| Q6_K | 0,38 | 0,24 (−0,02) | 0,05 | 0,03 | 0,08 |
+| Q5_K / Q5_0 | 0,38 / 0,44 | 0,23 / 0,23 (−0,03) | ≈ 0,05 | 0,07 / 0,09 | ≈ 0,07 |
+| Q4_K | 0,38 | 0,24 (−0,02) | 0,03 | 0,05 | 0,06 |
+| Q4_0, feste Lens | 0,38 | 0,23 (−0,03 [−0,12; +0,03]) | 0,06 | 0,05 | 0,06 |
+| Q4_0, neu gefittet | 0,38 | 0,21 (−0,06 [−0,14; +0,01]) | 0,07 | 0,06 | 0,06 |
+| Q3_K | 0,22 | **0,15 (−0,12 [−0,20; −0,05])** | 0,03 | 0,06 | 0,05 |
+| Q2_K | 0,01 | **0,01 (−0,26)** | 0,00 | 0,00 | 0,01 |
+| nur Embedding / Attention / MLP Q4_0 | 0,40–0,41 | 0,26 / 0,26 / 0,22 | ≈ 0,05 | 0,03–0,07 | ≈ 0,07 |
+
+- **Steering wirkt spezifisch:** 27 % gegenüber 5 % beim Steering zu einem unbeteiligten Konzept.
+- **Bis 4 bit** bleibt die Wirkung erhalten (Differenzen −0,02 bis −0,06, alle KIs enthalten 0); die
+  auf BF16 gefitteten Richtungen steuern das quantisierte Modell praktisch genauso.
+- **Ab 3 bit** sinkt sie signifikant, bei 2 bit ist sie weg — allerdings löst das Modell die Aufgaben
+  dort auch selbst kaum noch (Antwort ohne Eingriff 0,22 bzw. 0,01).
+- **Mit stärkerer Quantisierung kippt Steering öfter in bloße Ausgabe:** Der Anteil, bei dem das Modell
+  einfach das Tauschwort ausgibt, steigt von 0,19 (BF16) auf 0,29 (Q3_K) und 0,33 (Q2_K).
+- **Eine neu gefittete Lens hilft hier nicht** (Q4_0: 0,21 vs. 0,23).
+- **Ablation und Koordinaten-Tausch wirken kaum** — auf keiner Stufe, auch nicht auf BF16.
+
+## 7. Hypothesen
 
 | | Ergebnis |
 |---|---|
 | H1 | Q8_0: ja. 4 bit: Konzepte ja, Verteilung nein. ≤ 3 bit: nein. |
 | H2 | Ja: Verteilung monoton über die ganze Leiter; Konzepte erst ab 3 bit messbar. |
 | H3 | Teilweise: Refit holt Konzepte zurück und hält die Fidelity; die Abweichung vom BF16-Readout bleibt, weil das Modell selbst anders rechnet. |
+| H4 | Ja bis 4 bit (Steering-Erfolg innerhalb des Rauschens), nein ab 3 bit. Gilt nur für Steering; Ablation und Koordinaten-Tausch wirken schon auf BF16 kaum. |
 | H0 | Für Q8_0 (und Q6_K) beibehalten, ab 5 bit verworfen. |
 
 ## Reflexion
@@ -160,6 +193,17 @@ Aussagen aber auf den relativen Fehler und die Readouts.
 Chat-Modell. Das Chat-Format haben wir nur anhand von BF16 gewählt, bevor es Quant-Ergebnisse gab.
 Trotzdem gelten die Zahlen für dieses Format; `association` und `poetry` sind damit auf diesem
 Modell nicht messbar.
+
+**Kausaler Test: Hebel statt Mechanismus.** Unsere Lens-Richtungen sind Rückprojektionen von
+Ausgabe-Richtungen (`Jᵀu`). Spät angewendet sagen sie dem Modell eher *was es ausgeben soll* als *woran es
+denken soll* — im Band gibt es das Tauschwort selbst aus. Wir mussten deshalb auf frühere Schichten
+(L18–L25) ausweichen, und auch dort folgt die Antwort nur in gut einem Viertel der Fälle. Dass die
+**Ablation** kaum etwas bewirkt, heißt: Die Lens-Richtung des Brückenkonzepts ist für die Antwort nicht
+*notwendig* — entweder ist die Information redundant gespeichert, oder unsere Richtung trifft die
+Repräsentation des Modells nur teilweise. Der Koordinaten-Tausch des Papers funktioniert mit der
+Regressions-Lens gar nicht. Schichten und Stärke haben wir an 30 der 90 Items auf BF16 gewählt; das
+schönt den absoluten Wert, nicht den Vergleich zwischen den Quants. Bei 3 und 2 bit ist der Verlust
+an Steuerbarkeit nicht von der allgemeinen Verschlechterung des Modells zu trennen.
 
 **Ein Modell.** Alle Aussagen betreffen Spark-X2.6-4B. Laut Literatur sind kleine Modelle
 empfindlicher; größere könnten robuster sein.

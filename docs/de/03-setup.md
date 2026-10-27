@@ -48,6 +48,8 @@ scripts/make_quant_variants.sh       # Erweiterung: Leiter + Ablation
 scripts/fit_lenses.sh
 .venv/bin/python -m jspace_quant capture --gpus 0,1   # nur noch nicht erfasste Modelle
 .venv/bin/python -m jspace_quant analyze              # nur noch nicht berechnete Arme
+.venv/bin/python -m jspace_quant intervene --gpus 0,1 # kausaler Test (nach analyze: braucht das Band)
+.venv/bin/python -m jspace_quant analyze              # erneut, fasst den kausalen Test zusammen
 .venv/bin/python -m jspace_quant plot                 # Abbildungen auf Englisch und Deutsch
 
 # Notebooks
@@ -68,6 +70,7 @@ GPUs müssen frei sein.
 | Lens-Fit | ~40 min je Lens (CPU-gebunden: Gram-Matrizen in float64) |
 | Capture | ~1 min je Modell |
 | Analyse | ~35 min für die 11 Arme der Hauptstudie, ~50 min für die 18 Arme der Erweiterung (CPU) |
+| Kausaler Test | ~1 min je Modell (GPU), ~1,5 GB RAM je Lens |
 
 ## Verzeichnisse
 

@@ -1,7 +1,7 @@
 # 04 · Methodological decisions
 
 What we found along the way and how it changed the design, in the order it happened. Decisions §1–§5
-were made **before** the main run, without looking at results of the quantized models; §6 is a
+and §7 were made **before** the respective main run, without looking at results of the quantized models; §6 is a
 correction of the statistics after the first main run.
 
 ## 1. Spark only runs with patches
@@ -72,3 +72,27 @@ Two further consequences of the pilot test:
 In the first main run the confidence interval of the perplexity was uselessly wide (60–230), because the
 models were compared unpaired and the paragraphs differ a lot in difficulty. Since all models see the
 same positions, we compute differences per paragraph or item ⇒ much narrower, meaningful intervals.
+
+## 7. Form of the causal test
+
+For the causal test (interventions with lens directions on the paper's `probe-swap` set) we chose the
+form of the intervention in a pilot **on BF16 only**, on the first 30 of the 90 items and before any
+quantized model was run. Share of items whose next token is the swap answer (without intervention:
+0.07; correct answer without intervention: 0.40):
+
+| Intervention | Layers | Swap answer | Correct answer | Swap word itself |
+|---|---|---|---|---|
+| coordinate swap (paper) | L22–L34 (band) | 0.10 | 0.33 | 0.00 |
+| coordinate swap | all | 0.07 | 0.30 | 0.00 |
+| steering α = 0.05 | L22–L34 | 0.03 | 0.00 | 0.73 |
+| steering α = 0.1 | L14–L21 | 0.17 | 0.07 | 0.07 |
+| **steering α = 0.05** | **L18–L25** | **0.27** | **0.00** | **0.10** |
+
+Observations: the paper's coordinate swap barely acts with our regression lens. Steering acts
+strongly, but the later it is applied, the more it becomes a mere *output* lever: in the band the model
+outputs the swap word itself ("Mexico" instead of "Spanish") rather than reasoning with it. ⇒ **Main
+measure: steering at L18–L25 with α = 0.05** (α in units of the layer's typical residual norm), plus the
+coordinate swap in the band as a secondary measure and an ablation at L18–L25, each with a control.
+
+Because the parameters were chosen on part of the items, the absolute BF16 value is slightly
+optimistic; the comparison between quants is unaffected (same parameters for all).

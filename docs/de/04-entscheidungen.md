@@ -1,7 +1,7 @@
 # 04 · Methodische Entscheidungen
 
 Was wir unterwegs gefunden haben und wie es das Design verändert hat — in der Reihenfolge, in der
-es auftrat. Die Entscheidungen §1–§5 fielen **vor** dem Hauptlauf, ohne Blick auf Ergebnisse der
+es auftrat. Die Entscheidungen §1–§5 und §7 fielen **vor** dem jeweiligen Hauptlauf, ohne Blick auf Ergebnisse der
 quantisierten Modelle; §6 ist eine Korrektur der Statistik nach dem ersten Hauptlauf.
 
 ## 1. Spark läuft erst mit Patches
@@ -75,3 +75,27 @@ Im ersten Hauptlauf war das Konfidenzintervall der Perplexity unbrauchbar breit 
 Modelle ungepaart verglichen wurden und die Absätze sehr unterschiedlich schwer sind. Da alle Modelle
 dieselben Positionen sehen, rechnen wir Differenzen pro Absatz bzw. Item ⇒ deutlich engere,
 aussagekräftige Intervalle.
+
+## 7. Form des kausalen Tests
+
+Für den kausalen Test (Interventionen mit Lens-Richtungen auf dem Paper-Set `probe-swap`) haben wir
+die Eingriffsform in einem Pilot **nur auf BF16** gewählt, an den ersten 30 der 90 Items und bevor ein
+quantisiertes Modell lief. Anteil der Items, deren nächstes Token die Tausch-Antwort ist (ohne
+Eingriff: 0,07; richtige Antwort ohne Eingriff: 0,40):
+
+| Eingriff | Schichten | Tausch-Antwort | richtige Antwort | Tauschwort selbst |
+|---|---|---|---|---|
+| Koordinaten-Tausch (Paper) | L22–L34 (Band) | 0,10 | 0,33 | 0,00 |
+| Koordinaten-Tausch | alle | 0,07 | 0,30 | 0,00 |
+| Steering α = 0,05 | L22–L34 | 0,03 | 0,00 | 0,73 |
+| Steering α = 0,1 | L14–L21 | 0,17 | 0,07 | 0,07 |
+| **Steering α = 0,05** | **L18–L25** | **0,27** | **0,00** | **0,10** |
+
+Beobachtungen: Der Koordinaten-Tausch des Papers wirkt mit unserer Regressions-Lens kaum. Steering
+wirkt stark, aber je später, desto mehr als bloßer *Ausgabe*-Hebel: Im Band gibt das Modell das
+Tauschwort selbst aus („Mexico“ statt „Spanish“), statt damit weiterzudenken. ⇒ **Hauptmaß: Steering
+in L18–L25 mit α = 0,05** (α in Einheiten der typischen Residual-Norm der Schicht), dazu als
+Sekundärmaß der Koordinaten-Tausch im Band und eine Ablation in L18–L25, jeweils mit Kontrolle.
+
+Weil die Parameter an einem Teil der Items gewählt wurden, ist der absolute BF16-Wert leicht
+optimistisch; der Vergleich zwischen den Quants ist davon nicht betroffen (gleiche Parameter für alle).

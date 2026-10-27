@@ -17,6 +17,9 @@ bis 2 Bit und eine Komponenten-Ablation.
   gefittete Lens holt Verluste zurück: Der Raum ist verschoben, nicht zerstört.
 - **3 Bit** kostet messbar Konzepte, **2 Bit** zerstört sie.
 - Die Drift entsteht im Residual Stream; Attention, MLP und Embedding tragen jeweils bei.
+- **Auch kausal:** Steering entlang der auf BF16 gefitteten Lens-Richtungen lenkt die Antwort des
+  Modells um (27 % gegenüber 5 % in einer Kontrolle) und wirkt bis 4 Bit auf den quantisierten
+  Modellen genauso; bei 3 Bit lässt es nach, bei 2 Bit ist es weg.
 
 ![Verborgene Konzepte über die Schichten](results/figures/de/concept_trajectories.png)
 
@@ -33,6 +36,8 @@ Code und Abbildungen: [`notebooks/walkthrough.de.ipynb`](notebooks/walkthrough.d
    gefittete Lens; eine zweite BF16-Lens auf anderem Korpus dient als Rauschgrenze.
 3. **Messen:** ob die verborgenen Zwischenkonzepte der sechs Eval-Sets des Papers noch lesbar sind
    (pass@k), wie stark sich die Readouts pro Schicht verändern und wie sich das Modellverhalten ändert.
+4. **Eingreifen:** den Residual Stream auf dem Paper-Set `probe-swap` entlang von Lens-Richtungen
+   steuern und prüfen, ob die Antwort folgt — auf jeder Quantisierungsstufe.
 
 ## Dokumentation
 
