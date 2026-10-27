@@ -4,6 +4,8 @@
                               default: all models not captured yet
     analyze [--force]         readouts + metrics (CPU) -> results/tables/; computes only arms
                               without a result, --force recomputes all
+    intervene [--model M ...] causal swap/ablation test with lens directions (GPU);
+                              default: all models without results yet
     plot [--lang en de]       figures -> results/figures/<lang>/
     all                       everything in sequence
 
@@ -30,6 +32,9 @@ def main(argv=None) -> None:
                         help="models; 'missing' = all not captured yet (default), 'all' = recapture all")
         sp.add_argument("--gpus", default=",".join(config.SERVER_GPUS),
                         help="GPUs for parallel captures, one model per GPU (default: %(default)s)")
+    iv = sub.add_parser("intervene")
+    iv.add_argument("--model", nargs="+", default=["missing"], choices=[*config.MODELS, "all", "missing"])
+    iv.add_argument("--gpus", default=",".join(config.SERVER_GPUS))
     an = sub.add_parser("analyze")
     pl = sub.add_parser("plot")
     for sp in (an, a):
@@ -59,6 +64,19 @@ def main(argv=None) -> None:
         log.info("capturing: %s", models or "nothing to do")
         if models:
             capture.run_parallel(models, args.gpus.split(","))
+    if args.cmd == "intervene":
+        from jspace_quant import capture, intervene
+
+        if "all" in args.model:
+            models = list(config.MODELS)
+        elif "missing" in args.model:
+            models = [m for m in config.MODELS if not intervene.is_done(m)]
+        else:
+            models = args.model
+        models = [m for m in models if config.MODELS[m].exists()]
+        log.info("intervening: %s", models or "nothing to do")
+        if models:
+            capture.run_parallel(models, args.gpus.split(","), fn=intervene.run)
     if args.cmd in ("analyze", "all"):
         from jspace_quant import analysis
 

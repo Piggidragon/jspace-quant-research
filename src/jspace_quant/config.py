@@ -109,6 +109,19 @@ ARMS_BY_NAME: dict[str, Arm] = {a.name: a for a in ARMS}
 REFERENCE_ARM = "bf16|bf16-A"
 NOISE_ARM = "bf16|bf16-B"
 
+# Causal test (intervene.py). Steering layers and strength (α in units of the layer's typical
+# residual norm) were chosen in a pilot on BF16 only, before any quantized model was run
+# (docs/en/04-decisions.md §7); the coordinate swap uses the workspace band.
+STEER_LAYERS = range(18, 26)
+STEER_ALPHA = 0.05
+# which lenses provide the intervention directions per model
+INTERVENTION_LENSES: dict[str, list[str]] = {
+    "bf16": ["bf16-A", "bf16-B"],
+    "q8_0": ["bf16-A", "q8_0-A"],
+    "q4_0": ["bf16-A", "q4_0-A"],
+    **{m: ["bf16-A"] for m in EXTENSION_MODELS},
+}
+
 # Eval sets from anthropics/jacobian-lens (data/evaluations, Apache 2.0).
 EVAL_SETS = ["multihop", "multilingual", "order-ops", "association", "typo", "poetry"]
 PASS_AT_K = (1, 5, 10)

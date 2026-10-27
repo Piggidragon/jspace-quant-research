@@ -141,8 +141,9 @@ def is_captured(model: str) -> bool:
     return all((d / f"{s}.{ext}").exists() for s in ("evals", "heldout") for ext in ("npy", "json"))
 
 
-def run_parallel(models: list[str], gpus: list[str]) -> None:
-    """One model per GPU at a time; each GPU takes the next pending model."""
+def run_parallel(models: list[str], gpus: list[str], fn=None) -> None:
+    """One model per GPU at a time; each GPU takes the next pending model. `fn(model, gpu=, port=)`
+    is the job (default: run, i.e. capture)."""
     import queue
     from concurrent.futures import ThreadPoolExecutor
 
@@ -153,7 +154,7 @@ def run_parallel(models: list[str], gpus: list[str]) -> None:
     def job(model: str) -> None:
         gpu, port = slots.get()
         try:
-            run(model, gpu=gpu, port=port)
+            (fn or run)(model, gpu=gpu, port=port)
         finally:
             slots.put((gpu, port))
 

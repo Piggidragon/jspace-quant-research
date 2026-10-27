@@ -269,7 +269,8 @@ def summarize() -> dict:
     T = config.TABLES_DIR
     arms = available_arms()
     cr = concept_ranks(arms)
-    cr.to_csv(T / "concept_ranks.csv.gz", index=False)
+    # fixed gzip mtime, so an unchanged table stays byte-identical
+    cr.to_csv(T / "concept_ranks.csv.gz", index=False, compression={"method": "gzip", "mtime": 0})
 
     # hit rate per layer (rank ≤ 10 in exactly this layer), pooled over all concepts
     hit = (cr.assign(hit=cr["rank"] <= 10).groupby(["arm", "set", "layer"])["hit"].mean().reset_index())
@@ -294,6 +295,9 @@ def summarize() -> dict:
     model_table().to_csv(T / "models.csv", index=False)
     representation_similarity().to_csv(T / "representation_similarity.csv", index=False)
     concept_effects(cr, band).to_csv(T / "concept_effects.csv", index=False)
+    iv = intervention_summary()
+    if iv is not None:
+        iv.to_csv(T / "interventions_summary.csv", index=False)
 
     summary = {"workspace_band": list(band), "floor_sets": floor, "core_sets": core,
                "n_concepts": int(cr.groupby(["item", "word"]).ngroups),
@@ -449,3 +453,52 @@ def _token_counts() -> np.ndarray | None:
     counts = np.zeros(int(d["n_vocab"]), dtype=np.int64)
     counts[d["ids"]] = d["counts"]
     return counts
+
+
+# ---------------------------------------------------------------------------------------------
+# causal test: interventions with lens directions (intervene.py)
+# ---------------------------------------------------------------------------------------------
+
+def intervention_summary() -> pd.DataFrame | None:
+    """Per model × lens: rates under each condition with bootstrap CIs, plus the paired difference
+    to the reference arm (BF16, lens A) on the same items.
+
+    steer_success   share of items whose next token switches to swap_answer under steering
+    steer_control   the same share when steering towards an unrelated concept
+    swap_success    share switching to swap_answer under the coordinate swap
+    ablate_drop     share of correct answers lost by ablating the intermediate concept
+    ablate_control  share lost by ablating an unrelated concept
+    """
+    d = config.TABLES_DIR / "interventions"
+    files = sorted(d.glob("*.csv")) if d.exists() else []
+    if not files:
+        return None
+    df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
+    df = df[df.concept_tokens_ok]
+    base = df[df.condition == "baseline"].set_index(["model", "item"])["answer"].astype(float)
+    measures = {
+        "steer_success": ("steer", "swap_answer", False), "steer_control": ("steer_control", "swap_answer", False),
+        "swap_success": ("swap", "swap_answer", False), "steer_says_concept": ("steer", "says_concept", False),
+        "ablate_drop": ("ablate", "answer", True), "ablate_control": ("ablate_control", "answer", True),
+    }
+    per_item = {}
+    for (model, lens), g in df[df.condition != "baseline"].groupby(["model", "lens"]):
+        cols = {}
+        for name, (cond, col, drop) in measures.items():
+            v = g[g.condition == cond].set_index("item")[col].astype(float)
+            cols[name] = base.loc[model].reindex(v.index) - v if drop else v
+        per_item[model, lens] = pd.DataFrame(cols)
+    ref = per_item[config.REFERENCE_MODEL, config.REFERENCE_LENS]
+    rows = []
+    for (model, lens), t in per_item.items():
+        row = {"model": model, "lens": lens, "n_items": len(t),
+               "baseline_accuracy": base.loc[model].reindex(t.index).mean()}
+        for name in measures:
+            v = t[name].to_numpy()
+            lo, hi = _boot(v)
+            diff = v - ref[name].reindex(t.index).to_numpy()
+            d_lo, d_hi = _boot(diff, 1)
+            row |= {name: v.mean(), f"{name}_ci_lo": lo, f"{name}_ci_hi": hi,
+                    f"{name}_vs_ref": diff.mean(), f"{name}_vs_ref_ci_lo": d_lo, f"{name}_vs_ref_ci_hi": d_hi}
+        rows.append(row)
+    return pd.DataFrame(rows)

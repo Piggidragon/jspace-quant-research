@@ -40,6 +40,7 @@ plt.rcParams.update({
     "text.color": TEXT, "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.8,
     "axes.spines.top": False, "axes.spines.right": False, "legend.frameon": False,
     "lines.linewidth": 2.0, "figure.facecolor": "white", "axes.facecolor": "white",
+    "svg.hashsalt": "jspace-quant",  # deterministic SVG ids
 })
 
 # --- labels ----------------------------------------------------------------------------------
@@ -99,6 +100,14 @@ STRINGS = {
     "loss_freq_y": ("Share of concepts lost", "Anteil verlorener Konzepte"),
     "loss_freq_t": ("Loss (rank ≤ 10 → > 10) by token frequency in corpus A",
                     "Verlust (Rang ≤ 10 → > 10) nach Token-Häufigkeit in Korpus A"),
+    "iv_title": ("Causal test: do lens directions fitted on BF16 still steer the quantized model?",
+                 "Kausaler Test: Steuern die auf BF16 gefitteten Lens-Richtungen das quantisierte Modell noch?"),
+    "iv_steer_success": ("steering\n→ new answer", "Steering\n→ neue Antwort"),
+    "iv_steer_control": ("control steering\n→ new answer", "Kontroll-Steering\n→ neue Antwort"),
+    "iv_ablate_drop": ("ablation:\ncorrect answers lost", "Ablation:\nverlorene richtige Antworten"),
+    "iv_ablate_control": ("control ablation:\nanswers lost", "Kontroll-Ablation:\nverlorene Antworten"),
+    "iv_y": ("Share of items", "Anteil der Items"),
+    "iv_dose": ("By bit width (fixed BF16 lens)", "Nach Bitbreite (feste BF16-Lens)"),
 }
 MODEL_LABEL_DE = {"q4_0-attn": "nur Attention Q4_0", "q4_0-ffn": "nur MLP Q4_0",
                   "q4_0-embd": "nur Embedding Q4_0"}
@@ -141,8 +150,9 @@ def _color(arm_name: str) -> str:
 def _save(fig, name: str, lang: str) -> None:
     out = config.FIGURES_DIR / lang
     out.mkdir(parents=True, exist_ok=True)
-    for ext in ("png", "svg"):
-        fig.savefig(out / f"{name}.{ext}", bbox_inches="tight")
+    # no creation date in the metadata, so re-rendering unchanged figures leaves git clean
+    fig.savefig(out / f"{name}.png", bbox_inches="tight", metadata={"Software": None})
+    fig.savefig(out / f"{name}.svg", bbox_inches="tight", metadata={"Date": None, "Creator": None})
     plt.close(fig)
 
 
@@ -453,6 +463,47 @@ def concept_loss(effects: pd.DataFrame, core: list[str], lang: str) -> None:
     _save(fig, "concept_loss", lang)
 
 
+IV_ARMS = ["bf16|bf16-A", "bf16|bf16-B", "q8_0|bf16-A", "q8_0|q8_0-A", "q4_0|bf16-A", "q4_0|q4_0-A"]
+IV_MEASURES = ["steer_success", "steer_control", "ablate_drop", "ablate_control"]
+
+
+def interventions(iv: pd.DataFrame, models: pd.DataFrame, lang: str) -> None:
+    """Steering success and ablation effect with lens directions, per arm and by bit width."""
+    iv = iv.assign(arm=iv.model + "|" + iv.lens).set_index("arm")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 4.4), gridspec_kw={"width_ratios": [1.5, 1]})
+    arms = [a for a in IV_ARMS if a in iv.index]
+    width = 0.8 / len(arms)
+    for i, name in enumerate(arms):
+        arm = config.ARMS_BY_NAME[name]
+        x = np.arange(len(IV_MEASURES)) + (i - (len(arms) - 1) / 2) * width
+        v = iv.loc[name, IV_MEASURES].to_numpy(dtype=float)
+        lo = iv.loc[name, [f"{m}_ci_lo" for m in IV_MEASURES]].to_numpy(dtype=float)
+        hi = iv.loc[name, [f"{m}_ci_hi" for m in IV_MEASURES]].to_numpy(dtype=float)
+        ax1.bar(x, v, width * 0.92, color=_color(name), hatch=ROLE_HATCH[arm.role], edgecolor="white",
+                linewidth=0, label=arm_label(name, lang))
+        ax1.errorbar(x, v, yerr=[v - lo, hi - v], fmt="none", ecolor=TEXT, elinewidth=0.8)
+    ax1.set_xticks(np.arange(len(IV_MEASURES)), [t(f"iv_{m}", lang) for m in IV_MEASURES], fontsize=8)
+    ax1.set_ylabel(t("iv_y", lang))
+    ax1.legend(fontsize=7, ncol=2)
+    bpw = models.set_index("model")["bits_per_weight"]
+    for measure, marker in (("steer_success", "-o"), ("ablate_drop", "--s")):
+        for fam in ("legacy", "kquant"):
+            ms = sorted([m for m in LADDER if config.MODEL_INFO[m].family == fam and f"{m}|bf16-A" in iv.index],
+                        key=lambda m: bpw[m])
+            if ms:
+                ax2.plot([bpw[m] for m in ms], [iv.loc[f"{m}|bf16-A", measure] for m in ms], marker,
+                         color=FAMILY_COLOR[fam], label=f"{t(fam, lang)}: {t(f'iv_{measure}', lang)}".replace("\n", " "), ms=6)
+        ref = iv.loc[config.REFERENCE_ARM, measure]
+        ax2.axhline(ref, color=MODEL_COLOR["bf16"], lw=1.2, ls=":" if measure == "ablate_drop" else "-")
+    ax2.invert_xaxis()
+    ax2.set_xlabel(t("bpw", lang))
+    ax2.set_ylabel(t("iv_y", lang))
+    ax2.set_title(t("iv_dose", lang), fontsize=10)
+    ax2.legend(fontsize=7, loc="lower left")
+    fig.suptitle(t("iv_title", lang), y=1.02)
+    _save(fig, "interventions", lang)
+
+
 def all_figures(langs: tuple[str, ...] = LANGS) -> None:
     T = config.TABLES_DIR
     summary = json.loads((T / "summary.json").read_text())
@@ -482,3 +533,5 @@ def all_figures(langs: tuple[str, ...] = LANGS) -> None:
         if set(ABLATION) - {"q4_0"} & set(models.model):
             ablation(curves, repsim, beh, band, lang)
         concept_loss(effects, summary["core_sets"], lang)
+        if (T / "interventions_summary.csv").exists():
+            interventions(pd.read_csv(T / "interventions_summary.csv"), models, lang)
