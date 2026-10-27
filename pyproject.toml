@@ -1,0 +1,29 @@
+[project]
+name = "jspace-quant"
+version = "1.0.0"
+description = "Robustness of Jacobian-lens (J-space) readouts to weight quantization"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "pyarrow>=17",
+    "huggingface_hub>=0.25",
+    # jlens-gguf (with patches/jlens-gguf-local.patch applied) is installed separately in editable
+    # mode, see docs/en/03-setup.md:  uv pip install -e repos/jlens-gguf
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "nbformat>=5", "nbconvert>=7", "ipykernel>=6"]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
