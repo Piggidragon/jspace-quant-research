@@ -1,0 +1,22 @@
+{
+  "dataset": "Salesforce/wikitext",
+  "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+  "shard": "wikitext-103-raw-v1/train-00000-of-00002.parquet",
+  "min_chars": 600,
+  "fetched": "2026-10-26",
+  "license": "CC BY-SA 4.0",
+  "corpora": {
+    "A": {
+      "file": "wikitext103-A-n1000.txt",
+      "n": 1000,
+      "row_idx_first": 3,
+      "row_idx_last": 4596
+    },
+    "B": {
+      "file": "wikitext103-B-n1000.txt",
+      "n": 1000,
+      "row_idx_first": 4600,
+      "row_idx_last": 9199
+    }
+  }
+}
