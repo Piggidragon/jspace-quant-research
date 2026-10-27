@@ -1,0 +1,32 @@
+diff --git a/jlens_gguf/model_reader.py b/jlens_gguf/model_reader.py
+index 0f01431..81aab8d 100644
+--- a/jlens_gguf/model_reader.py
++++ b/jlens_gguf/model_reader.py
+@@ -63,8 +63,10 @@ class ReadoutWeights:
+                 return None
+             if t.tensor_type in (gguf.GGMLQuantizationType.F32,):
+                 return np.asarray(t.data, dtype=np.float32)
+-            if t.tensor_type in (gguf.GGMLQuantizationType.F16, gguf.GGMLQuantizationType.BF16):
++            if t.tensor_type == gguf.GGMLQuantizationType.F16:
+                 return np.asarray(t.data).astype(np.float32)
++            # BF16 arrives as raw bytes (numpy has no bfloat16): it must go through
++            # dequantize, a plain astype would turn each byte into a "weight"
+             return dequantize(t.data, t.tensor_type).astype(np.float32, copy=False)
+ 
+         w_unembed = load_tensor("output.weight")
+diff --git a/native/jlens_server.cpp b/native/jlens_server.cpp
+index 4513f25..7ab930f 100644
+--- a/native/jlens_server.cpp
++++ b/native/jlens_server.cpp
+@@ -1144,8 +1144,9 @@ int main(int argc, char ** argv) {
+     llama_model_params mparams = llama_model_default_params();
+     mparams.n_gpu_layers = n_gpu_layers;
+     mparams.main_gpu     = main_gpu;
+-    mparams.use_mmap     = use_mmap;
+-    mparams.use_mlock    = use_mlock;
++    // upstream llama.cpp replaced use_mmap/use_mlock with a single load_mode enum
++    mparams.load_mode    = use_mmap ? (use_mlock ? LLAMA_LOAD_MODE_MMAP_MLOCK : LLAMA_LOAD_MODE_MMAP)
++                                    : (use_mlock ? LLAMA_LOAD_MODE_MLOCK      : LLAMA_LOAD_MODE_NONE);
+     S.model = llama_model_load_from_file(model_path.c_str(), mparams);
+     if (!S.model) { fprintf(stderr, "error: failed to load model %s\n", model_path.c_str()); return 1; }
+     S.vocab = llama_model_get_vocab(S.model);
