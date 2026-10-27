@@ -1,0 +1,33 @@
+{
+  "workspace_band": [
+    22,
+    34
+  ],
+  "floor_sets": [
+    "association",
+    "poetry"
+  ],
+  "core_sets": [
+    "multihop",
+    "multilingual",
+    "order-ops",
+    "typo"
+  ],
+  "n_concepts": 937,
+  "single_token_share": 0.9391675560298826,
+  "models": [
+    "bf16",
+    "q8_0",
+    "q5_0",
+    "q4_0",
+    "q6_k",
+    "q5_k",
+    "q4_k",
+    "q3_k",
+    "q2_k",
+    "q4_0-attn",
+    "q4_0-ffn",
+    "q4_0-embd"
+  ],
+  "n_arms": 29
+}
